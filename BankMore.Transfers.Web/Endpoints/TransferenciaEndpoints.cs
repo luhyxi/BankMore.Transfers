@@ -49,11 +49,23 @@ public static class TransferenciaEndpoints
                     }
                 })
             .WithName("CreateTransferencia")
+            .WithSummary("Creates a transaction between registered accounts")
+            .WithDescription("Creates a credit transaction for the receiver account and generates a debit transaction for the sender account")
             .RequireAuthorization()
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status403Forbidden)
-            .WithOpenApi();
+            .WithOpenApi(operation =>
+            {
+                operation.Summary = "Create transaction between registered accounts";
+                operation.Description = @"Creates a credit transaction for the receiver account and generates a debit transaction for the sender account
+                - Validates that only registered and active accounts can receive transactions
+                - Only positive values are accepted
+                - Only 'C' (Credit) or 'D' (Debit) types are allowed
+                - Requires authentication token in the request header";
+                return operation;
+            });
+
     }
 }
 

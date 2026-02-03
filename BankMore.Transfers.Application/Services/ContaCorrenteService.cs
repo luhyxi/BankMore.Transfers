@@ -55,6 +55,31 @@ public class ContaCorrenteService : IContaCorrenteService
         return response.IsSuccessStatusCode;
     }
 
+    public async ValueTask<string> GetAccountUuidByAccountNumber(string apiToken, string accountNumber)
+    {
+        SetAuthorizationHeader(apiToken);
+
+        var response = await _httpClient.GetAsync($"conta/id/{accountNumber}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to retrieve account UUID for account {AccountNumber}. Status: {StatusCode}. Error: {Error}",
+                accountNumber, response.StatusCode, errorContent);
+            throw new HttpRequestException($"Failed to retrieve account UUID: {response.StatusCode}");
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<AccountIdResponse>();
+
+        if (result?.Id == null)
+        {
+            _logger.LogError("Invalid response when retrieving account UUID for account {AccountNumber}", accountNumber);
+            throw new InvalidOperationException("Invalid response from account service");
+        }
+
+        return result.Id;
+    }
+
     private void SetAuthorizationHeader(string apiToken)
     {
         _httpClient.DefaultRequestHeaders.Remove(HeaderNames.Authorization);
@@ -66,4 +91,5 @@ public class ContaCorrenteService : IContaCorrenteService
         _httpClient.DefaultRequestHeaders.Add(HeaderNames.Authorization, tokenString);
     }
     private sealed record TransactionRequest(string? Numero, decimal Valor, string TipoMovimento);
+    private sealed record AccountIdResponse(string Id);
 }

@@ -63,7 +63,7 @@ public sealed class CreateTransferenciaHandler(
             var transferencia = new Domain.TransferenciaAggregate.Transferencia(
                 Guid.NewGuid().ToString(),
                 senderId!,
-                command.ReceiverAccountNumber,
+                await service.GetAccountUuidByAccountNumber(command.JwtToken, command.ReceiverAccountNumber),
                 DateTime.UtcNow,
                 command.Amount
             );

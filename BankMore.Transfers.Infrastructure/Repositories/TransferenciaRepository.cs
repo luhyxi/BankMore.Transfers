@@ -55,7 +55,7 @@ public sealed class TransferenciaRepository : ITransferenciaRepository
     {
         using var connection = await OpenConnectionAsync(cancellationToken);
         var sql = $"{SelectSql} WHERE idtransferencia = @Id";
-        var command = new CommandDefinition(sql, new { Id = transferenciaId }, cancellationToken: cancellationToken);
+        var command = new CommandDefinition(sql, new { Id = transferenciaId.ToString() }, cancellationToken: cancellationToken);
         var result = await connection.QuerySingleOrDefaultAsync<TransferenciaRow>(command);
         return result is null
             ? throw new KeyNotFoundException($"Transferencia with id '{transferenciaId}' was not found.")
@@ -71,7 +71,7 @@ public sealed class TransferenciaRepository : ITransferenciaRepository
     {
         return new
         {
-            IdTransferencia = transferencia.IdContaCorrenteDestino,
+            IdTransferencia = transferencia.IdTransferencia,
             IdContaCorrenteOrigem = transferencia.IdContaCorrenteOrigem,
             IdContaCorrenteDestino = transferencia.IdContaCorrenteDestino,
             DataMovimento = transferencia.DataMovimento.ToString("dd/MM/yyyy"),
