@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using BankMore.Transfers.Domain.Interfaces;
 using BankMore.Transfers.Domain.TransferenciaAggregate;
 using BankMore.Transfers.Infrastructure.Data;
@@ -70,7 +71,7 @@ public sealed class TransferenciaRepository : ITransferenciaRepository
     {
         return new
         {
-            IdTransferencia = transferencia.IdContaCorrenteOrigem,
+            IdTransferencia = transferencia.IdContaCorrenteDestino,
             IdContaCorrenteOrigem = transferencia.IdContaCorrenteOrigem,
             IdContaCorrenteDestino = transferencia.IdContaCorrenteDestino,
             DataMovimento = transferencia.DataMovimento.ToString("dd/MM/yyyy"),
@@ -80,13 +81,13 @@ public sealed class TransferenciaRepository : ITransferenciaRepository
 
     private static Transferencia Map(TransferenciaRow row)
     {
-        return new Transferencia
-        {
-            IdContaCorrenteOrigem = row.IdContaCorrenteOrigem,
-            IdContaCorrenteDestino = row.IdContaCorrenteDestino,
-            DataMovimento = DateTime.ParseExact(row.DataMovimento, "dd/MM/yyyy", null),
-            Valor = row.Valor
-        };
+        return new Transferencia(
+            row.IdTransferencia,
+            row.IdContaCorrenteOrigem,
+            row.IdContaCorrenteDestino,
+            DateTime.ParseExact(row.DataMovimento, "dd/MM/yyyy", CultureInfo.InvariantCulture),
+            row.Valor
+        );
     }
 
     private sealed class TransferenciaRow

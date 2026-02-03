@@ -35,7 +35,6 @@ public static class TransferenciaEndpoints
 
                         var command = new CreateTransferenciaCommand(
                             token,
-                            senderNumber,
                             request.ReceiverNumber,
                             request.Amount);
                         var result = await mediator.Send(command, cancellationToken);

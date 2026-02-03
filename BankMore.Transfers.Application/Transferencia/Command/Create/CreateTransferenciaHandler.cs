@@ -12,45 +12,39 @@ public sealed class CreateTransferenciaHandler(
     ITransferenciaRepository repository,
     IContaCorrenteService service,
     ILogger<CreateTransferenciaHandler> logger
-    )
+)
     : ICommandHandler<CreateTransferenciaCommand, CreateTransferenciaResult>
 {
-    public async ValueTask<CreateTransferenciaResult> Handle(CreateTransferenciaCommand command, CancellationToken cancellationToken)
+    public async ValueTask<CreateTransferenciaResult> Handle(CreateTransferenciaCommand command,
+        CancellationToken cancellationToken)
     {
         if (IsCommandValid(command, out var result))
             return CreateTransferenciaResult.Failure(result!);
 
-        logger.LogInformation(command.JwtToken);
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(command.JwtToken);
         var senderId = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
+        var senderNumber = GetSenderNumber(jwt);
 
-        Guid debitTransactionId;
         try
         {
-            debitTransactionId = await service.RealizeDebit(
-                command.JwtToken,
-                command.ReceiverAccountNumber,
-                command.Amount);
+            var debitToSenderResult = await service.RealizeDebit(command.JwtToken, command.Amount);
+            if (!debitToSenderResult)
+            {
+                return CreateTransferenciaResult.Failure(
+                    "debit_failed: checking account service returned an empty transaction id.");
+            }
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Debit failed for account {AccountNumber}", command.SenderAccountNumber);
+            logger.LogError(ex, "Debit failed for account {AccountNumber}", senderNumber);
             return CreateTransferenciaResult.Failure($"debit_failed: {ex.Message}");
-        }
-
-        if (debitTransactionId == Guid.Empty)
-        {
-            return CreateTransferenciaResult.Failure("debit_failed: checking account service returned an empty transaction id.");
         }
 
         try
         {
-            var creditTransactionId = await service.RealizeCredit(
-                command.JwtToken,
-                command.ReceiverAccountNumber,
-                command.Amount);
+            var creditToReceiverResult = await service.RealizeCredit(command.JwtToken, command.Amount,command.ReceiverAccountNumber);
 
-            if (creditTransactionId == Guid.Empty)
+            if (!creditToReceiverResult)
             {
                 var reversalMessage = await TryReverseAsync(command);
                 return CreateTransferenciaResult.Failure(
@@ -66,13 +60,13 @@ public sealed class CreateTransferenciaHandler(
 
         try
         {
-            var transferencia = new Domain.TransferenciaAggregate.Transferencia
-            {
-                IdContaCorrenteOrigem = senderId!,
-                IdContaCorrenteDestino = command.ReceiverAccountNumber,
-                DataMovimento = DateTime.UtcNow,
-                Valor = command.Amount
-            };
+            var transferencia = new Domain.TransferenciaAggregate.Transferencia(
+                Guid.NewGuid().ToString(),
+                senderId!,
+                command.ReceiverAccountNumber,
+                DateTime.UtcNow,
+                command.Amount
+            );
 
             await repository.CreateAsync(transferencia, cancellationToken);
         }
@@ -113,21 +107,26 @@ public sealed class CreateTransferenciaHandler(
 
     private async Task<string> TryReverseAsync(CreateTransferenciaCommand command)
     {
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(command.JwtToken);
+        var senderNumber = GetSenderNumber(jwt);
+
         try
         {
-            var reversalId = await service.RealizeDebit(
-                command.JwtToken,
-                command.ReceiverAccountNumber,
-                command.Amount);
+            var reversalResult = await service.RealizeCredit(command.JwtToken, command.Amount);
 
-            return reversalId == Guid.Empty
-                ? "reversal_failed: checking account service returned an empty transaction id."
-                : "reversal_performed: debit reversal succeeded.";
+            return !reversalResult 
+                ? "reversal_failed: checking account service returned an failed result."
+                : "reversal_performed: credit reversal succeeded.";
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Reversal failed for account {AccountNumber}", command.SenderAccountNumber);
+            logger.LogError(ex, "Reversal failed for account {AccountNumber}", senderNumber);
             return $"reversal_failed: {ex.Message}";
         }
+    }
+    private static string? GetSenderNumber(JwtSecurityToken jwt)
+    {
+        var senderNumber = jwt.Claims.FirstOrDefault(c => c.Type == "number")?.Value;
+        return senderNumber;
     }
 }
